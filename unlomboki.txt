@@ -1,0 +1,422 @@
+lombokis gareshe
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+package com.example.javasfinaluri;
+
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.scene.Node;
+import javafx.scene.Scene;
+import javafx.scene.chart.PieChart;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+
+import java.util.List;
+
+
+public class HelloApplication extends Application {
+    private PieChart pieChart;
+    private HelloController productDAO;
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+
+    @Override
+    public void start(Stage primaryStage) {
+        productDAO = new HelloController();
+        pieChart = new PieChart();
+
+        TextField nameField = new TextField();
+        nameField.setPromptText("Enter product name");
+        TextField priceField = new TextField();
+        priceField.setPromptText("Enter product price");
+        TextField quantityField = new TextField();
+        quantityField.setPromptText("Enter product quantity");
+        TextField updateIdField = new TextField();
+        updateIdField.setPromptText("Enter product ID to update");
+
+        Button insertButton = new Button("Insert Product");
+        Button deleteButton = new Button("Delete Product");
+        Button updateButton = new Button("Update Product");
+        Button readButton = new Button("Read Product");
+
+        TextField readIdField = new TextField();
+        readIdField.setPromptText("Enter product ID to read");
+
+        Label feedbackLabel = new Label();
+        Label readResultLabel = new Label();
+
+        insertButton.setOnAction(e -> {
+            String name = nameField.getText();
+            String priceText = priceField.getText();
+            String quantityText = quantityField.getText();
+            if (!name.isEmpty() && !priceText.isEmpty() && !quantityText.isEmpty()) {
+                try {
+                    double price = Double.parseDouble(priceText);
+                    int quantity = Integer.parseInt(quantityText);
+                    productDAO.addProduct(new Product(0, name, price, quantity));
+                    feedbackLabel.setText("Product added successfully!");
+                    nameField.clear();
+                    priceField.clear();
+                    quantityField.clear();
+                    updatePieChart();
+                } catch (NumberFormatException ex) {
+                    feedbackLabel.setText("Please enter valid price and quantity!");
+                }
+            } else {
+                feedbackLabel.setText("All fields are required!");
+            }
+        });
+
+        deleteButton.setOnAction(e -> {
+            String idText = readIdField.getText();
+            if (!idText.isEmpty()) {
+                try {
+                    int id = Integer.parseInt(idText);
+                    productDAO.deleteProduct(id);
+                    feedbackLabel.setText("Product deleted successfully!");
+                    readIdField.clear();
+                    updatePieChart();
+                } catch (NumberFormatException ex) {
+                    feedbackLabel.setText("Please enter a valid ID!");
+                }
+            } else {
+                feedbackLabel.setText("ID field is required!");
+            }
+        });
+
+        updateButton.setOnAction(e -> {
+            String idText = updateIdField.getText();
+            String name = nameField.getText();
+            String priceText = priceField.getText();
+            String quantityText = quantityField.getText();
+
+            if (!idText.isEmpty() && !name.isEmpty() && !priceText.isEmpty() && !quantityText.isEmpty()) {
+                try {
+                    int id = Integer.parseInt(idText);
+                    double price = Double.parseDouble(priceText);
+                    int quantity = Integer.parseInt(quantityText);
+                    productDAO.updateProduct(new Product(id, name, price, quantity));
+                    feedbackLabel.setText("Product updated successfully!");
+                    updateIdField.clear();
+                    nameField.clear();
+                    priceField.clear();
+                    quantityField.clear();
+                    updatePieChart();
+                } catch (NumberFormatException ex) {
+                    feedbackLabel.setText("Please enter valid values!");
+                }
+            } else {
+                feedbackLabel.setText("All fields are required for update!");
+            }
+        });
+
+        readButton.setOnAction(e -> {
+            String idText = readIdField.getText();
+            if (!idText.isEmpty()) {
+                try {
+                    int id = Integer.parseInt(idText);
+                    Product product = productDAO.getProduct(id);
+                    if (product != null) {
+                        readResultLabel.setText(
+                                "ID: " + product.getId() +
+                                        ", Name: " + product.getName() +
+                                        ", Price: " + product.getPrice() +
+                                        ", Quantity: " + product.getQuantity()
+                        );
+                    } else {
+                        readResultLabel.setText("No product found with ID: " + id);
+                    }
+                } catch (NumberFormatException ex) {
+                    readResultLabel.setText("Please enter a valid ID!");
+                }
+            } else {
+                readResultLabel.setText("ID field is required for reading!");
+            }
+        });
+
+        VBox layout = new VBox(
+                15,
+                nameField,
+                priceField,
+                quantityField,
+                insertButton,
+                new Label("Update Product:"),
+                updateIdField,
+                updateButton,
+                new Label("Delete Product:"),
+                readIdField,
+                deleteButton,
+                readButton,
+                readResultLabel,
+                feedbackLabel,
+                pieChart
+        );
+        layout.setPadding(new Insets(25));
+        updatePieChart();
+
+        Scene scene = new Scene(layout, 600, 700);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Grocery Store");
+        primaryStage.show();
+    }
+
+    private void updatePieChart() {
+        pieChart.getData().clear();
+        List<Product> products = productDAO.getAllProducts();
+
+        int totalQuantity = products.stream().mapToInt(Product::getQuantity).sum();
+
+        if (totalQuantity > 0) {
+            products.forEach(product -> {
+                int quantity = product.getQuantity();
+                double percentage = ((double) quantity / totalQuantity) * 100;
+
+                String pieLabel = product.getName() + " - quantity: " + quantity + " (" + String.format("%.2f", percentage) + "%)";
+
+                pieChart.getData().add(new PieChart.Data(pieLabel, quantity));
+            });
+        } else {
+            pieChart.getData().add(new PieChart.Data("No products available", 1));
+    }
+}} 
+
+
+
+
+
+
+package com.example.javasfinaluri;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class HelloController {
+    private Connection connection;
+
+    public HelloController() {
+        try {
+            connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/mari-java", "root", "");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void addProduct(Product product) {
+        String query = "INSERT INTO products (name, price, quantity) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setString(1, product.getName());
+            ps.setDouble(2, product.getPrice());
+            ps.setInt(3, product.getQuantity());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public Product getProduct(int productId) {
+        String query = "SELECT * FROM products WHERE id = ?";
+        Product product = null;
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setInt(1, productId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                product = new Product(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getDouble("price"),
+                        rs.getInt("quantity")
+                );
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return product;
+    }
+
+    public List<Product> getAllProducts() {
+        String query = "SELECT * FROM products";
+        List<Product> products = new ArrayList<>();
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
+            while (rs.next()) {
+                products.add(new Product(
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getDouble("price"),
+                        rs.getInt("quantity")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return products;
+    }
+
+    public void updateProduct(Product product) {
+        String query = "UPDATE products SET name = ?, price = ?, quantity = ? WHERE id = ?";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setString(1, product.getName());
+            ps.setDouble(2, product.getPrice());
+            ps.setInt(3, product.getQuantity());
+            ps.setInt(4, product.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void deleteProduct(int productId) {
+        String query = "DELETE FROM products WHERE id = ?";
+        try (PreparedStatement ps = connection.prepareStatement(query)) {
+            ps.setInt(1, productId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+package com.example.javasfinaluri;
+
+
+public class Product {
+    private int id;
+    private String name;
+    private double price;
+    private int quantity;
+
+    public Product(int id, String name, double price, int quantity) {
+        this.id = id;
+        this.name = name;
+        this.price = price;
+        this.quantity = quantity;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+
+    public void setPrice(int price) {
+        this.price = price;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dependencies>
+        <!-- https://mvnrepository.com/artifact/mysql/mysql-connector-java -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>17.0.6</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>17.0.6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+
+
+
+
+CREATE TABLE products (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR (255) NOT NULL,
+price DOUBLE NOT NULL,
+quantity INT NOT NULL
+
+);
